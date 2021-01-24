@@ -1,0 +1,112 @@
+#!/bin/bash
+
+# VARS
+name='QemuSH'
+
+# Tests
+if [[ ! -d "${HOME}/qemush" ]]; then
+    mkdir -pv ${HOME}/qemush/profile/
+fi
+
+# FUNCTIONS
+CREATE()
+{
+    # Limit processors
+    local proc_limit=$(grep -c processor /proc/cpuinfo)
+    local mem_limit=$(free -hm | grep "Mem" | awk '{print $2}')
+
+    # Name of virtual machine
+    NAME=$(dialog --stdout  \
+        --backtitle "$name" \
+        --inputbox "Nome da máquina virtual" 7 50
+    )
+
+    # No spaces
+    NAME=${NAME// /_}
+
+    # Select
+    PROC=$(dialog --stdout                                                              \
+        --backtitle "$name"                                                             \
+        --rangebox "Número de processadores a serem utilizados na virtualização. $msg"  \
+        10 50 \
+        1 $proc_limit 1
+    )
+
+    # Select
+    MEM=$(dialog --stdout                                                                \
+        --backtitle "$name"                                                              \
+        --inputbox "Quantidade de memória em k, M, G, T, P a ser utilizada na virtualização. $mem_limit TOTAL" 10 50
+    )
+
+
+    SELECT_MEDIA=$(dialog --stdout    \
+                --backtitle "$name"   \
+                --fselect $HOME 60 100
+    )
+
+    # Size Disk image
+    SIZE_DISK=$(dialog --stdout  \
+             --backtitle "$name" \
+             --inputbox "Especifique qual o tamanho da imagem que você deseja criar em 'GB'." 10 50
+    )
+
+    # Result
+    dialog --backtitle "$name" \
+           --title "Dados da sua nova máquina virtual" \
+           --msgbox "Nome da máquina virtual: $NAME\nProcessadores: $PROC\nTamanho do disco: $SIZE_DISK " 0 0
+
+    # Create new machine
+
+    pushd ${HOME}/qemush &>/dev/null
+    qemu-img create -f qcow2 ${NAME}.qcow2 30G
+    popd &>/dev/null
+
+    # Create new profile
+    cat <<EOF > ${HOME}/qemush/profile/$NAME.profile
+# Profile
+nome="$NAME"
+processadores="$PROC"
+memoria="$MEM"
+media="$SELECT_MEDIA"
+disco="${HOME}/qemush/${NAME}.qcow2"
+EOF
+
+} # End function
+
+START()
+{
+    start_machine=$(dialog --stdout --title "Selecione um profile para iniciar a virtualização" \
+           --fselect ${HOME}/qemush/profile/ 40 100)
+
+    source $start_machine # Load profile
+    clear
+
+    # ISO RUN?
+    if ! dialog --yesno "Você deseja iniciar com a ISO?" 10 40; then
+        qemu-system-x86_64   \
+        -enable-kvm          \
+        -m $memoria          \
+        -name "$nome"        \
+        -boot d -hda $media
+    else
+        qemu-system-x86_64   \
+        -enable-kvm          \
+        -m $memoria          \
+        -name "$nome"        \
+        -boot d -hda $media  \
+        -cdrom $disco
+    fi
+
+} # End function
+
+# MAIN
+menu=$(dialog --stdout --backtitle "QemuSH" --menu "QemuSH" 0 0 0 \
+   Criar   'Criar uma nova máquina virtual'              \
+   Iniciar  'Iniciar uma virtualização' \
+   Deletar 'Delete máquina virtual da lista'
+)
+
+case $menu in
+    Criar) CREATE ;;
+    Iniciar) START ;;
+esac
