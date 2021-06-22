@@ -86,15 +86,17 @@ START()
         qemu-system-x86_64   \
         -enable-kvm          \
         -m $memoria          \
+        -smp $processadores  \
         -name "$nome"        \
-        -boot d -hda $media
+        -boot d -hda $disco
     else
         qemu-system-x86_64   \
         -enable-kvm          \
         -m $memoria          \
+        -smp $processadores  \
         -name "$nome"        \
-        -boot d -hda $media  \
-        -cdrom $disco
+        -boot d -hda $disco  \
+        -cdrom $media
     fi
 
 } # End function
